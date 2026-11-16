@@ -1,0 +1,12 @@
+; .lab zone -- benign lab services. Negative TTL (last SOA field) = 60 s.
+$TTL 300
+@       IN SOA  ns.lab. admin.lab. ( 2026110801 3600 600 86400 60 )
+        IN NS   ns.lab.
+ns              IN A    172.30.0.10
+shop            IN A    172.30.0.20
+news            IN A    172.30.0.20
+mail            IN A    172.30.0.20
+wiki            IN A    172.30.0.20
+intranet.corp   IN A    172.30.0.20
+files.corp      IN A    172.30.0.20
+; oldbackup.corp.lab was decommissioned on purpose (client2's stale config).

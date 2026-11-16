@@ -1,0 +1,11 @@
+// Fake root: anything that is not under .lab gets NXDOMAIN.
+zone "." {
+    type master;
+    file "/etc/bind/zones/db.root";
+};
+
+// The lab's own domain.
+zone "lab" {
+    type master;
+    file "/etc/bind/zones/db.lab";
+};
