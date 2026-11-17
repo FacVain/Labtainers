@@ -3,7 +3,7 @@
 
 password="$1"
 log_file=/tmp/fixlocal.output
-services="benign"
+services="benign dga"
 
 echo "fixlocal start $(date)" >> "$log_file"
 
