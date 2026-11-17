@@ -1,0 +1,5 @@
+#!/bin/bash
+# Use the lab resolver. "search corp.lab" creates realistic suffix NXDOMAINs.
+echo "search corp.lab" > /etc/resolv.conf
+echo "nameserver 172.30.0.10" >> /etc/resolv.conf
+exit 0
