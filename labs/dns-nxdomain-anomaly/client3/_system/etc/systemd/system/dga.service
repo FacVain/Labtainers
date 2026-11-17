@@ -1,0 +1,11 @@
+[Unit]
+Description=nxlab simulated DGA malware
+After=waitparam.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/dga_client.py
+User=ubuntu
+
+[Install]
+WantedBy=multi-user.target
