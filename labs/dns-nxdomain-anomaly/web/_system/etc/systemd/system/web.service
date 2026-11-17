@@ -1,0 +1,13 @@
+[Unit]
+Description=nxlab benign web sites
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/nxlab
+ExecStart=/usr/bin/python3 -m http.server 80 --directory /var/www/nxlab
+StandardOutput=null
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
