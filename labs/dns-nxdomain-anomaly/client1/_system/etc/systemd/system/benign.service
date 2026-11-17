@@ -1,0 +1,12 @@
+[Unit]
+Description=nxlab benign DNS activity
+After=waitparam.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/benign_gen.py
+Restart=on-failure
+User=ubuntu
+
+[Install]
+WantedBy=multi-user.target

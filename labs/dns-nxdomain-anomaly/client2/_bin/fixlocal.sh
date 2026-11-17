@@ -1,18 +1,31 @@
 #!/bin/bash
-#
-#  This script will be run after parameterization has completed, e.g., 
-#  use this to compile source code that has been parameterized.
-#  The container user password will be passed as the first argument,
-#  (the user ID is the second parameter)
-#  If this script is to use sudo and the sudoers for the lab
-#  does not permit nopassword, then use:
-#  echo $1 | sudo -S the-command
-#
-#  If you issue commands herein to start services, and those services
-#  have unit files prescribing their being started after the
-#  waitparam.service, then first create the flag directory that
-#  waitparam sleeps on:
-#
-#   PERMLOCKDIR=/var/labtainer/did_param
-#   echo $1 | sudo -S mkdir -p "$PERMLOCKDIR"
+# Runs once, after parameterization. $1 = user password.
 
+password="$1"
+log_file=/tmp/fixlocal.output
+services="benign"
+
+echo "fixlocal start $(date)" >> "$log_file"
+
+if ! printf '%s\n' "$password" | sudo -S true 2>> "$log_file"; then
+    echo "Could not authenticate sudo. Check $log_file."
+    exit 1
+fi
+
+mkdir -p /home/ubuntu/logs
+
+# The units start after waitparam.service; mark parameterization as done.
+sudo mkdir -p /var/labtainer/did_param
+
+for svc in $services; do
+    if ! sudo systemctl enable "$svc" >> "$log_file" 2>&1; then
+        echo "Could not enable $svc. Check $log_file."
+        exit 1
+    fi
+    if ! sudo systemctl start "$svc" >> "$log_file" 2>&1; then
+        echo "Could not start $svc. Check $log_file."
+        exit 1
+    fi
+done
+
+echo "fixlocal done $(date)" >> "$log_file"
