@@ -13,6 +13,14 @@ fi
 # This container uses its own DNS server.
 echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf > /dev/null
 
+mkdir -p /home/ubuntu/logs
+
+# Register the parameterized C2 name in the .lab zone.
+if ! sudo /usr/local/bin/c2setup.sh >> "$log_file" 2>&1; then
+    echo "Could not register the C2 name. Check $log_file."
+    exit 1
+fi
+
 if ! sudo chown -R bind:bind /etc/bind/zones >> "$log_file" 2>&1; then
     echo "Could not set zone ownership. Check $log_file."
     exit 1
