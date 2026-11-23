@@ -1,0 +1,11 @@
+[Unit]
+Description=nxlab DNS response monitor
+After=waitparam.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/dns_monitor.py -i eth0 -o /home/ubuntu/logs/dns_log.csv
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

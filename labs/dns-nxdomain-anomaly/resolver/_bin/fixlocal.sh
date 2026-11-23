@@ -36,4 +36,21 @@ if ! sudo /usr/local/bin/bindctl.sh restart >> "$log_file" 2>&1; then
     exit 1
 fi
 
+# Enable the monitor for future boots.
+if ! sudo systemctl enable dnsmonitor >> "$log_file" 2>&1; then
+    echo "Could not enable the DNS monitor. Check $log_file."
+    exit 1
+fi
+
+# waitparam must be finished before dns monitor
+if ! sudo mkdir -p /var/labtainer/did_param >> "$log_file" 2>&1; then
+    echo "Parameterization could not finished. Check $log_file."
+    exit 1
+fi
+
+if ! sudo systemctl start dnsmonitor >> "$log_file" 2>&1; then
+    echo "Could not start the DNS monitor. Check $log_file."
+    exit 1
+fi
+
 echo "fixlocal done $(date)" >> "$log_file"

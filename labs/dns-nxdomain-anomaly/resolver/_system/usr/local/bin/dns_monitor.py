@@ -55,7 +55,6 @@ def parse_dns_response(dns):
         return None
     query_id, flags, question_count = struct.unpack("!HHH", dns[:6])
 
-    # The highest bit is set when the packet is a DNS response.
     if (flags & 0x8000) == 0 or question_count < 1:
         return None
     
