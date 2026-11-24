@@ -9,3 +9,10 @@ zone "lab" {
     type master;
     file "/etc/bind/zones/db.lab";
 };
+
+// Client quarantine rules.
+zone "rpz.local" {
+    type master;
+    file "/etc/bind/zones/db.rpz.local";
+    allow-query { none; };
+};
