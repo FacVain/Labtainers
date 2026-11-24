@@ -4,6 +4,7 @@
 DNS responses -> dns_monitor.py -> dns_log.csv -> nx_detector.py
     -> count NXDOMAINs and different failed names per client
     -> threshold or behavior check -> terminal + alerts.log
+    -> with --respond -> mitigate.sh -> RPZ quarantine
 
 Usage:
   nx_detector.py --mode threshold
@@ -11,11 +12,13 @@ Usage:
   nx_detector.py --window 60 --nx-threshold 20
   nx_detector.py --follow
   nx_detector.py --stats
+  nx_detector.py --mode behavior --follow --respond
 """
 import argparse
 import csv
 import math
 import os
+import subprocess
 import time
 
 DEFAULT_LOG = "/home/ubuntu/logs/dns_log.csv"
@@ -76,6 +79,17 @@ def is_alert(total, nx_count, ratio, diversity, args):
             and diversity >= args.diversity)
 
 
+def respond(ip):
+    # sudo -n fails instead of waiting for a password during live detection.
+    try:
+        result = subprocess.run(["sudo", "-n", "/usr/local/bin/mitigate.sh", "quarantine", ip],
+                                check=False)
+    except OSError as error:
+        print("Could not run quarantine:", error, flush=True)
+        return False
+    return result.returncode == 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                     formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -87,6 +101,7 @@ def main():
     parser.add_argument("--ratio", type=float, default=0.5)
     parser.add_argument("--diversity", type=float, default=0.8)
     parser.add_argument("--follow", action="store_true", help="keep reading new log entries")
+    parser.add_argument("--respond", action="store_true", help="quarantine each client on its first alert (run sudo -v first)")
     parser.add_argument("--alerts-file", default=DEFAULT_ALERTS)
     parser.add_argument("--append", action="store_true", help="keep alerts from earlier runs")
     parser.add_argument("--stats", action="store_true", help="show peak counts without writing alerts")
@@ -102,6 +117,8 @@ def main():
 
     if args.stats and args.follow:
         parser.error("use --stats on a saved log without --follow")
+    if args.stats and args.respond:
+        parser.error("--stats does not apply quarantine; remove --respond")
 
     if not args.stats and os.path.realpath(args.log) == os.path.realpath(args.alerts_file):
         parser.error("the DNS log and alerts file must be different files")
@@ -173,6 +190,13 @@ def main():
                 print(text, flush=True)
                 alert_file.write(text + "\n")
                 alert_ips.append(ip)
+                if args.respond:
+                    if respond(ip):
+                        text = "RESPONSE ts={:.3f} client={} action=rpz-quarantine".format(time.time(), ip)
+                    else:
+                        text = "RESPONSE_FAILED ts={:.3f} client={} action=rpz-quarantine".format(time.time(), ip)
+                    print(text, flush=True)
+                    alert_file.write(text + "\n")
     except KeyboardInterrupt:
         print("\nStopped.")
     finally:

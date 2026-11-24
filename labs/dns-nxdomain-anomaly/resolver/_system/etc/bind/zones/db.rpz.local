@@ -1,0 +1,4 @@
+$TTL 60
+@ IN SOA localhost. root.localhost. ( 1 3600 600 86400 60 )
+  IN NS localhost.
+; quarantine rules are added by mitigate.sh

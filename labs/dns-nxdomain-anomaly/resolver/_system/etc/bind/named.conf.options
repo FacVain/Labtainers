@@ -11,5 +11,7 @@ options {
     dnssec-validation no;
 
     // Use rndc querylog on when debugging DNS queries.
+    // Apply client quarantine policy to local zone (same zone like .lab) responses too.
+    response-policy { zone "rpz.local"; } recursive-only no;
 
 };
