@@ -12,6 +12,6 @@ options {
 
     // Use rndc querylog on when debugging DNS queries.
     // Apply client quarantine policy to local zone (same zone like .lab) responses too.
-    response-policy { zone "rpz.local"; } recursive-only no;
+    response-policy { zone "rpz.local" min-update-interval 0; } recursive-only no;
 
 };

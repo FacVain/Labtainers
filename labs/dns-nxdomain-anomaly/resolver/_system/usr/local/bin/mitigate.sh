@@ -10,7 +10,7 @@ action="$1"
 ip="$2"
 
 current_ips() {
-    awk '/; quarantine / {print $NF}' "$zone"
+    awk '$2 == "CNAME" && $3 == "." && $4 == ";" && $5 == "quarantine" {print $6}' "$zone"
 }
 
 if [ "$action" = "list" ] && [ "$#" -eq 1 ]; then
