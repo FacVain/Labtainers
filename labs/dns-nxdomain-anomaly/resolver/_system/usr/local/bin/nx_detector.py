@@ -2,11 +2,12 @@
 """Count NXDOMAIN responses in a sliding window for each client.
 
 DNS responses -> dns_monitor.py -> dns_log.csv -> nx_detector.py
-    -> count NXDOMAINs per client in the time window
-    -> if count >= threshold -> terminal + alerts.log
+    -> count NXDOMAINs and different failed names per client
+    -> threshold or behavior check -> terminal + alerts.log
 
 Usage:
   nx_detector.py --mode threshold
+  nx_detector.py --mode behavior
   nx_detector.py --window 60 --nx-threshold 20
   nx_detector.py --follow
   nx_detector.py --stats
@@ -32,37 +33,59 @@ def parse_row(line):
             return None
         ts = float(parts[0])
         ip = parts[1]
+        name = parts[2].lower().rstrip(".")
         code = int(parts[4])
     except (ValueError, csv.Error):
         return None
 
     if not math.isfinite(ts) or not (0 <= code <= 15):
         return None
-    return ts, ip, code
+    return ts, ip, name, code
 
 
-def update_window(rows, ts, code, seconds):
+def update_window(rows, ts, name, code, seconds):
     # Remove old records.
-    rows.append((ts, code))
+    rows.append((ts, name, code))
     while rows and rows[0][0] < ts - seconds:
         rows.pop(0)
 
     # Count NXDOMAIN responses.
     nx_count = 0
 
-    for old_ts, old_code in rows:
+    names = []
+    for old_ts, old_name, old_code in rows:
         if old_code == NXDOMAIN:
             nx_count += 1
-    return len(rows), nx_count
+            if old_name not in names:
+                names.append(old_name)
+    total = len(rows)
+    distinct = len(names)
+    ratio = 0.0
+    diversity = 0.0
+    if total > 0:
+        ratio = nx_count / total
+    if nx_count > 0:
+        diversity = distinct / nx_count
+    return total, nx_count, distinct, ratio, diversity
+
+
+def is_alert(total, nx_count, ratio, diversity, args):
+    if args.mode == "threshold":
+        return nx_count >= args.nx_threshold
+    return (total >= args.min_queries and ratio >= args.ratio
+            and diversity >= args.diversity)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                     formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("log", nargs="?", default=DEFAULT_LOG)
-    parser.add_argument("--mode", choices=["threshold"], default="threshold")
+    parser.add_argument("--mode", choices=["threshold", "behavior"], default="threshold")
     parser.add_argument("--window", type=float, default=60.0, help="window length in seconds")
     parser.add_argument("--nx-threshold", type=int, default=20)
+    parser.add_argument("--min-queries", type=int, default=15)
+    parser.add_argument("--ratio", type=float, default=0.5)
+    parser.add_argument("--diversity", type=float, default=0.8)
     parser.add_argument("--follow", action="store_true", help="keep reading new log entries")
     parser.add_argument("--alerts-file", default=DEFAULT_ALERTS)
     parser.add_argument("--append", action="store_true", help="keep alerts from earlier runs")
@@ -73,6 +96,9 @@ def main():
 
     if not math.isfinite(args.window) or args.window <= 0 or args.nx_threshold < 1:
         parser.error("window and NXDOMAIN threshold must be positive")
+
+    if args.min_queries < 1 or not (0 <= args.ratio <= 1) or not (0 <= args.diversity <= 1):
+        parser.error("min-queries must be positive; ratio and diversity must be between 0 and 1")
 
     if args.stats and args.follow:
         parser.error("use --stats on a saved log without --follow")
@@ -123,22 +149,27 @@ def main():
                 row = parse_row(line)
                 if row is None:
                     continue
-                ts, ip, code = row
+                ts, ip, name, code = row
                 if ip in skip_ips:
                     continue
 
                 if ip not in client_rows:
                     client_rows[ip] = []
-                total, nx_count = update_window(client_rows[ip], ts, code, args.window)
+                total, nx_count, distinct, ratio, diversity = update_window(
+                    client_rows[ip], ts, name, code, args.window)
 
                 if ip not in max_counts or nx_count > max_counts[ip][1]:
-                    max_counts[ip] = (total, nx_count)
+                    max_counts[ip] = (total, nx_count, distinct, ratio, diversity)
 
                 # Write one alert per client.
-                if args.stats or nx_count < args.nx_threshold or ip in alert_ips:
+                if args.stats or ip in alert_ips:
                     continue
-                text = ("ALERT ts={:.3f} client={} mode=threshold total={} nx={}").format(
-                    ts, ip, total, nx_count)
+                if not is_alert(total, nx_count, ratio, diversity, args):
+                    continue
+                text = ("ALERT ts={:.3f} client={} mode={} total={} nx={}").format(
+                    ts, ip, args.mode, total, nx_count)
+                text += " distinct={} ratio={:.2f} diversity={:.2f}".format(
+                    distinct, ratio, diversity)
                 print(text, flush=True)
                 alert_file.write(text + "\n")
                 alert_ips.append(ip)
@@ -151,7 +182,7 @@ def main():
     print("\nClient counts:")
     for ip in sorted(max_counts):
 
-        total, nx_count = max_counts[ip]
+        total, nx_count, distinct, ratio, diversity = max_counts[ip]
         result = "no alert"
 
         if args.stats:
@@ -159,7 +190,9 @@ def main():
         elif ip in alert_ips:
             result = "ALERT"
 
-        print(ip, "total:", total, "NXDOMAIN:", nx_count, "result:", result)
+        print(ip, "total:", total, "NXDOMAIN:", nx_count,
+              "distinct:", distinct, "ratio:", round(ratio, 2),
+              "diversity:", round(diversity, 2), "result:", result)
 
     print("Counts come from each client's window with the most NXDOMAINs.")
 
